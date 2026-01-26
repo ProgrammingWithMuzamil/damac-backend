@@ -4,8 +4,11 @@ import { Database, Resource } from '@adminjs/mongoose';
 import mongoose from 'mongoose';
 import User from './models/userModel.js';
 import Collaboration from './models/collaborationModel.js';
+import cardModel from './models/cardModel.js';
+import cardYourPerfectModel from './models/cardYourPerfectModel.js';
+import propertyModel from './models/propertyModel.js';
+import slideModel from './models/slideModel.js';
 
-// Register Mongoose adapter
 AdminJS.registerAdapter({
     Resource: Resource,
     Database: Database,
@@ -106,12 +109,12 @@ const adminRouter = AdminJSExpress.buildAuthenticatedRouter(
                 if (!user || user.role !== 'admin') {
                     return null;
                 }
-                
+
                 const isPasswordValid = await user.comparePassword(password);
                 if (!isPasswordValid) {
                     return null;
                 }
-                
+
                 // Return user object - AdminJS expects the Mongoose document
                 return user;
             } catch (error) {

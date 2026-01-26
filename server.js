@@ -7,12 +7,15 @@ import { dirname } from 'path';
 import path from 'path';
 import userRoutes from './routes/userRoute.js';
 import collaborationRoutes from './routes/collaborationRoute.js';
+import cardRoutes from './routes/cardRoute.js';
+import propertyRoutes from './routes/propertyRoute.js';
 import adminRouter from './admin.js';
+import slideRoutes from './routes/slideRoute.js';
+import cardYourPerfectModel from "./routes/cardYourPerfectRoute.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Load environment variables from .env file
 dotenv.config();
 
 const app = express();
@@ -24,7 +27,6 @@ mongoose.connect(mongoURI)
     .then(() => console.log('MongoDB connected'))
     .catch(err => console.log('MongoDB connection error:', err));
 
-// Middleware
 app.use(cors({
     origin: true,
     credentials: true,
@@ -32,15 +34,15 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Routes
-app.use('/api', userRoutes);          // User routes (CRUD)
-app.use('/api', collaborationRoutes); // Collaboration routes (CRUD)
-app.use('/admin', adminRouter);        // Admin panel route
-
-// Start the server
+app.use('/api', userRoutes);
+app.use('/api/collaboration', collaborationRoutes);
+app.use('/admin', adminRouter);
+app.use('/api/card', cardRoutes);
+app.use('/api/property', propertyRoutes);
+app.use('/api/slide', slideRoutes);
+app.use('/api/cardYourPerfect', cardYourPerfectModel);
 app.listen(port, () => {
     console.log(`Server is running on port: ${port}`);
 });
