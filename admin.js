@@ -2,6 +2,8 @@ import AdminJS from 'adminjs';
 import AdminJSExpress from '@adminjs/express';
 import { Database, Resource } from '@adminjs/mongoose';
 import mongoose from 'mongoose';
+import express from 'express';
+import session from 'express-session';
 import User from './models/userModel.js';
 import Collaboration from './models/collaborationModel.js';
 import cardModel from './models/cardModel.js';
@@ -9,32 +11,25 @@ import cardYourPerfectModel from './models/cardYourPerfectModel.js';
 import propertyModel from './models/propertyModel.js';
 import slideModel from './models/slideModel.js';
 
+// Register AdminJS adapter
 AdminJS.registerAdapter({
     Resource: Resource,
     Database: Database,
 });
 
-// AdminJS options
+// AdminJS configuration
 const adminOptions = {
     resources: [
         {
             resource: User,
             options: {
-                navigation: {
-                    name: 'Users',
-                    icon: 'User',
-                },
+                navigation: { name: 'Users', icon: 'User' },
                 listProperties: ['name', 'email', 'role'],
                 editProperties: ['name', 'email', 'role', 'password'],
                 properties: {
                     password: {
                         type: 'string',
-                        isVisible: {
-                            list: false,
-                            filter: false,
-                            show: true,
-                            edit: true,
-                        },
+                        isVisible: { list: false, filter: false, show: true, edit: true },
                     },
                 },
             },
@@ -42,50 +37,41 @@ const adminOptions = {
         {
             resource: Collaboration,
             options: {
-                navigation: {
-                    name: 'Collaborations',
-                    icon: 'Collaboration',
-                },
+                navigation: { name: 'Collaborations', icon: 'Collaboration' },
                 listProperties: ['title', 'desc', 'img', 'logo'],
                 editProperties: ['img', 'logo', 'title', 'desc'],
-                properties: {
-                    img: {
-                        type: 'string',
-                        isVisible: {
-                            list: true,
-                            filter: false,
-                            show: true,
-                            edit: true,
-                        },
-                    },
-                    logo: {
-                        type: 'string',
-                        isVisible: {
-                            list: true,
-                            filter: false,
-                            show: true,
-                            edit: true,
-                        },
-                    },
-                    title: {
-                        type: 'string',
-                        isVisible: {
-                            list: true,
-                            filter: true,
-                            show: true,
-                            edit: true,
-                        },
-                    },
-                    desc: {
-                        type: 'string',
-                        isVisible: {
-                            list: true,
-                            filter: false,
-                            show: true,
-                            edit: true,
-                        },
-                    },
-                },
+            },
+        },
+        {
+            resource: cardModel,
+            options: {
+                navigation: { name: 'Cards', icon: 'Card' },
+                listProperties: ['title', 'desc', 'img', 'createdAt'],
+                editProperties: ['img', 'title', 'desc'],
+            },
+        },
+        {
+            resource: cardYourPerfectModel,
+            options: {
+                navigation: { name: 'Your Perfect Cards', icon: 'Card' },
+                listProperties: ['title', 'price', 'img', 'createdAt'],
+                editProperties: ['img', 'title', 'price'],
+            },
+        },
+        {
+            resource: propertyModel,
+            options: {
+                navigation: { name: 'Properties', icon: 'Property' },
+                listProperties: ['title', 'location', 'price', 'img', 'createdAt'],
+                editProperties: ['img', 'title', 'location', 'price'],
+            },
+        },
+        {
+            resource: slideModel,
+            options: {
+                navigation: { name: 'Slides', icon: 'Slide' },
+                listProperties: ['title', 'location', 'img', 'createdAt'],
+                editProperties: ['img', 'title', 'location', 'points'],
             },
         },
     ],
@@ -99,36 +85,79 @@ const adminOptions = {
 // Initialize AdminJS
 const admin = new AdminJS(adminOptions);
 
-// AdminJS login configuration
+// Session secret
+const sessionSecret = process.env.ADMIN_COOKIE_SECRET || 'some-very-long-secret-password-that-is-at-least-32-characters-long-for-security-purposes-12345';
+
+// Authentication function
+const authenticate = async (email, password) => {
+    try {
+        console.log(`\n🔐 [${new Date().toISOString()}] Login attempt: ${email}`);
+
+        if (!email || !password) {
+            console.log('❌ Missing credentials');
+            return null;
+        }
+
+        if (mongoose.connection.readyState !== 1) {
+            console.error('❌ MongoDB not connected');
+            return null;
+        }
+
+        const user = await User.findOne({ email: email.trim().toLowerCase() });
+
+        if (!user) {
+            console.log(`❌ User not found: ${email}`);
+            return null;
+        }
+
+        if (user.role !== 'admin') {
+            console.log(`❌ Not an admin user. Role: ${user.role}`);
+            return null;
+        }
+
+        const isValid = await user.comparePassword(password);
+
+        if (!isValid) {
+            console.log(`❌ Invalid password for: ${email}`);
+            return null;
+        }
+
+        console.log(`✅ Login successful: ${email}\n`);
+
+        // Return the full user object (AdminJS expects Mongoose document)
+        return user;
+    } catch (error) {
+        console.error('❌ Auth error:', error.message);
+        return null;
+    }
+};
+
+// Create router
+const router = express.Router();
+
+// Session configuration
+const sessionConfig = {
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    name: 'adminjs.sid',
+    cookie: {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'lax',
+        maxAge: 1000 * 60 * 60 * 24, // 24 hours
+    },
+};
+
+// Build authenticated router
 const adminRouter = AdminJSExpress.buildAuthenticatedRouter(
     admin,
     {
-        authenticate: async (email, password) => {
-            try {
-                const user = await User.findOne({ email });
-                if (!user || user.role !== 'admin') {
-                    return null;
-                }
-
-                const isPasswordValid = await user.comparePassword(password);
-                if (!isPasswordValid) {
-                    return null;
-                }
-
-                // Return user object - AdminJS expects the Mongoose document
-                return user;
-            } catch (error) {
-                console.error('Authentication error:', error);
-                return null;
-            }
-        },
-        cookiePassword: 'some-very-long-secret-password-that-is-at-least-32-characters-long-for-security-purposes-12345',
+        authenticate: authenticate,
+        cookiePassword: sessionSecret,
     },
-    null,
-    {
-        resave: false,
-        saveUninitialized: true,
-    }
+    router,
+    sessionConfig
 );
 
 export default adminRouter;

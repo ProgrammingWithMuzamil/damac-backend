@@ -34,8 +34,8 @@ async function createAdminUser() {
         console.log('Admin user created successfully!');
         console.log('Email: admin@damac.com');
         console.log('Password: admin123');
-        console.log('\nYou can now login to the AdminJS panel at http://localhost:8000/admin');
-        
+        console.log('\nYou can now login to the AdminJS panel at http://localhost:9000/admin');
+
         process.exit(0);
     } catch (error) {
         console.error('Error creating admin user:', error);

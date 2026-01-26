@@ -14,7 +14,7 @@ const cardSchema = new mongoose.Schema({
         required: true,
     },
 }, {
-    timestamps: true, // Adds createdAt and updatedAt fields
+    timestamps: true,
 });
 
 export default mongoose.model('Card', cardSchema);

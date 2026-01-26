@@ -12,6 +12,7 @@ import propertyRoutes from './routes/propertyRoute.js';
 import adminRouter from './admin.js';
 import slideRoutes from './routes/slideRoute.js';
 import cardYourPerfectModel from "./routes/cardYourPerfectRoute.js";
+import bodyParser from 'body-parser';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -22,27 +23,82 @@ const app = express();
 const port = process.env.PORT || 3000;
 const mongoURI = process.env.MONGODB_URI;
 
-// Connect to MongoDB
-mongoose.connect(mongoURI)
-    .then(() => console.log('MongoDB connected'))
-    .catch(err => console.log('MongoDB connection error:', err));
+
+mongoose.connect(mongoURI, {
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+})
+    .then(() => {
+        console.log('✅ MongoDB connected successfully');
+        console.log(`📊 Database: ${mongoose.connection.name}`);
+    })
+    .catch(err => {
+        console.error('❌ MongoDB connection error:', err.message);
+        if (err.message.includes('whitelist') || err.message.includes('IP')) {
+            console.error('\n⚠️  IP Whitelist Issue Detected!');
+            console.error('📝 To fix this:');
+            console.error('1. Go to MongoDB Atlas: https://cloud.mongodb.com/');
+            console.error('2. Navigate to: Network Access → Add IP Address');
+            console.error('3. Click "Add Current IP Address" or add 0.0.0.0/0 (allow all IPs - less secure)');
+            console.error('4. Wait a few minutes for changes to propagate\n');
+        }
+    });
+
+mongoose.connection.on('disconnected', () => {
+    console.log('⚠️  MongoDB disconnected');
+});
+
+mongoose.connection.on('error', (err) => {
+    console.error('❌ MongoDB error:', err);
+});
 
 app.use(cors({
     origin: true,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cookie'],
+    exposedHeaders: ['Set-Cookie'],
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
+
+app.use((req, res, next) => {
+    if (req.path.includes('/admin')) {
+        console.log(`📥 [${new Date().toISOString()}] ${req.method} ${req.path}`);
+    }
+    next();
+});
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+        timestamp: new Date().toISOString()
+    });
+});
+
 app.use('/api', userRoutes);
-app.use('/api/collaboration', collaborationRoutes);
+app.use('/api/', collaborationRoutes);
+app.use('/api/', cardRoutes);
+app.use('/api/', propertyRoutes);
+app.use('/api/', slideRoutes);
+app.use('/api/', cardYourPerfectModel);
+
 app.use('/admin', adminRouter);
-app.use('/api/card', cardRoutes);
-app.use('/api/property', propertyRoutes);
-app.use('/api/slide', slideRoutes);
-app.use('/api/cardYourPerfect', cardYourPerfectModel);
+
+app.use((err, req, res, next) => {
+    console.error('❌ Error:', err.message);
+    console.error('Stack:', err.stack);
+    res.status(err.status || 500).json({
+        error: err.message || 'Internal Server Error'
+    });
+});
+
 app.listen(port, () => {
-    console.log(`Server is running on port: ${port}`);
+    console.log(`\n🚀 Server is running on port: ${port}`);
+    console.log(`📊 Admin Panel: http://localhost:${port}/admin`);
+    console.log(`💚 Health Check: http://localhost:${port}/health\n`);
 });
