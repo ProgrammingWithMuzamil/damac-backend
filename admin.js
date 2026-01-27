@@ -1,15 +1,22 @@
 import AdminJS from 'adminjs';
 import AdminJSExpress from '@adminjs/express';
 import { Database, Resource } from '@adminjs/mongoose';
+import uploadFeature from '@adminjs/upload';
 import mongoose from 'mongoose';
 import express from 'express';
 import session from 'express-session';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import User from './models/userModel.js';
 import Collaboration from './models/collaborationModel.js';
 import cardModel from './models/cardModel.js';
 import cardYourPerfectModel from './models/cardYourPerfectModel.js';
 import propertyModel from './models/propertyModel.js';
 import slideModel from './models/slideModel.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Register AdminJS adapter
 AdminJS.registerAdapter({
@@ -39,40 +46,150 @@ const adminOptions = {
             options: {
                 navigation: { name: 'Collaborations', icon: 'Collaboration' },
                 listProperties: ['title', 'desc', 'img', 'logo'],
-                editProperties: ['img', 'logo', 'title', 'desc'],
+                editProperties: ['uploadImg', 'uploadLogo', 'title', 'desc'],
+                properties: {
+                    img: {
+                        isVisible: { list: true, filter: true, show: true, edit: false },
+                    },
+                    logo: {
+                        isVisible: { list: true, filter: true, show: true, edit: false },
+                    },
+                },
             },
+            features: [
+                uploadFeature({
+                    provider: {
+                        local: {
+                            bucket: path.join(__dirname, 'uploads'),
+                        },
+                    },
+                    properties: {
+                        file: 'uploadImg',
+                        key: 'img',
+                    },
+                    uploadPath: (record, filename) => `uploads/${filename}`,
+                }),
+                uploadFeature({
+                    provider: {
+                        local: {
+                            bucket: path.join(__dirname, 'uploads'),
+                        },
+                    },
+                    properties: {
+                        file: 'uploadLogo',
+                        key: 'logo',
+                    },
+                    uploadPath: (record, filename) => `uploads/${filename}`,
+                }),
+            ],
         },
         {
             resource: cardModel,
             options: {
                 navigation: { name: 'Cards', icon: 'Card' },
                 listProperties: ['title', 'desc', 'img', 'createdAt'],
-                editProperties: ['img', 'title', 'desc'],
+                editProperties: ['uploadImg', 'title', 'desc'],
+                properties: {
+                    img: {
+                        isVisible: { list: true, filter: true, show: true, edit: false },
+                    },
+                },
             },
+            features: [
+                uploadFeature({
+                    provider: {
+                        local: {
+                            bucket: path.join(__dirname, 'uploads'),
+                        },
+                    },
+                    properties: {
+                        file: 'uploadImg',
+                        key: 'img',
+                    },
+                    uploadPath: (record, filename) => `uploads/${filename}`,
+                }),
+            ],
         },
         {
             resource: cardYourPerfectModel,
             options: {
                 navigation: { name: 'Your Perfect Cards', icon: 'Card' },
                 listProperties: ['title', 'price', 'img', 'createdAt'],
-                editProperties: ['img', 'title', 'price'],
+                editProperties: ['uploadImg', 'title', 'price'],
+                properties: {
+                    img: {
+                        isVisible: { list: true, filter: true, show: true, edit: false },
+                    },
+                },
             },
+            features: [
+                uploadFeature({
+                    provider: {
+                        local: {
+                            bucket: path.join(__dirname, 'uploads'),
+                        },
+                    },
+                    properties: {
+                        file: 'uploadImg',
+                        key: 'img',
+                    },
+                    uploadPath: (record, filename) => `uploads/${filename}`,
+                }),
+            ],
         },
         {
             resource: propertyModel,
             options: {
                 navigation: { name: 'Properties', icon: 'Property' },
                 listProperties: ['title', 'location', 'price', 'img', 'createdAt'],
-                editProperties: ['img', 'title', 'location', 'price'],
+                editProperties: ['uploadImg', 'title', 'location', 'price'],
+                properties: {
+                    img: {
+                        isVisible: { list: true, filter: true, show: true, edit: false },
+                    },
+                },
             },
+            features: [
+                uploadFeature({
+                    provider: {
+                        local: {
+                            bucket: path.join(__dirname, 'uploads'),
+                        },
+                    },
+                    properties: {
+                        file: 'uploadImg',
+                        key: 'img',
+                    },
+                    uploadPath: (record, filename) => `uploads/${filename}`,
+                }),
+            ],
         },
         {
             resource: slideModel,
             options: {
                 navigation: { name: 'Slides', icon: 'Slide' },
                 listProperties: ['title', 'location', 'img', 'createdAt'],
-                editProperties: ['img', 'title', 'location', 'points'],
+                editProperties: ['uploadImg', 'title', 'location', 'points'],
+                properties: {
+                    img: {
+                        isVisible: { list: true, filter: true, show: true, edit: false },
+                    },
+                },
             },
+            features: [
+                uploadFeature({
+                    provider: {
+                        local: {
+                            bucket: path.join(__dirname, 'uploads'),
+                        },
+                    },
+                    properties: {
+                        file: 'uploadImg',
+                        key: 'img',
+                    },
+                    uploadPath: (record, filename) => `uploads/${filename}`,
+                }),
+            ],
         },
     ],
     rootPath: '/admin',
