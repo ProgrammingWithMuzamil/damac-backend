@@ -5,6 +5,7 @@ import uploadFeature from '@adminjs/upload';
 import mongoose from 'mongoose';
 import express from 'express';
 import session from 'express-session';
+import { ComponentLoader } from 'adminjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -18,6 +19,9 @@ import slideModel from './models/slideModel.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+const componentLoader = new ComponentLoader();
+
+
 // Register AdminJS adapter
 AdminJS.registerAdapter({
     Resource: Resource,
@@ -26,6 +30,7 @@ AdminJS.registerAdapter({
 
 // AdminJS configuration
 const adminOptions = {
+    componentLoader,
     resources: [
         {
             resource: User,
@@ -58,6 +63,7 @@ const adminOptions = {
             },
             features: [
                 uploadFeature({
+                    componentLoader,
                     provider: {
                         local: {
                             bucket: path.join(__dirname, 'uploads'),
@@ -70,6 +76,7 @@ const adminOptions = {
                     uploadPath: (record, filename) => `uploads/${filename}`,
                 }),
                 uploadFeature({
+                    componentLoader,
                     provider: {
                         local: {
                             bucket: path.join(__dirname, 'uploads'),
@@ -97,6 +104,7 @@ const adminOptions = {
             },
             features: [
                 uploadFeature({
+                    componentLoader,
                     provider: {
                         local: {
                             bucket: path.join(__dirname, 'uploads'),
@@ -124,6 +132,7 @@ const adminOptions = {
             },
             features: [
                 uploadFeature({
+                    componentLoader,
                     provider: {
                         local: {
                             bucket: path.join(__dirname, 'uploads'),
@@ -151,6 +160,7 @@ const adminOptions = {
             },
             features: [
                 uploadFeature({
+                    componentLoader,
                     provider: {
                         local: {
                             bucket: path.join(__dirname, 'uploads'),
@@ -178,6 +188,7 @@ const adminOptions = {
             },
             features: [
                 uploadFeature({
+                    componentLoader,
                     provider: {
                         local: {
                             bucket: path.join(__dirname, 'uploads'),

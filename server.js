@@ -23,17 +23,13 @@ const app = express();
 const port = process.env.PORT || 3000;
 const mongoURI = process.env.MONGODB_URI;
 
-
-mongoose.connect(mongoURI, {
-    serverSelectionTimeoutMS: 5000,
-    socketTimeoutMS: 45000,
-})
+console.log('Mongo URI:', mongoURI);
+mongoose.connect("mongodb+srv://root:yaivftrqdryhKtjy@damac-cluster.favp0rh.mongodb.net/?appName=damac-cluster")
     .then(() => {
         console.log('✅ MongoDB connected successfully');
-        console.log(`📊 Database: ${mongoose.connection.name}`);
     })
     .catch(err => {
-        console.error('❌ MongoDB connection error:', err.message);
+        console.error('❌ MongoDB connection error:', err);
         if (err.message.includes('whitelist') || err.message.includes('IP')) {
             console.error('\n⚠️  IP Whitelist Issue Detected!');
             console.error('📝 To fix this:');
