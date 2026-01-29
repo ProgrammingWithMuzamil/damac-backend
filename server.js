@@ -24,7 +24,7 @@ const port = process.env.PORT || 3000;
 const mongoURI = process.env.MONGODB_URI;
 
 console.log('Mongo URI:', mongoURI);
-mongoose.connect("mongodb+srv://root:yaivftrqdryhKtjy@damac-cluster.favp0rh.mongodb.net/?appName=damac-cluster")
+mongoose.connect("mongodb+srv://muzamildeveloper750_db_user:VdQ2s1YTXaKiDIn3@cluster0.0oc8ri1.mongodb.net/")
     .then(() => {
         console.log('✅ MongoDB connected successfully');
     })
