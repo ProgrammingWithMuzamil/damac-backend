@@ -1,18 +1,26 @@
 import express from 'express';
-import mongoose from 'mongoose';
+import { User, Property, Collaboration, Slide, YourPerfect, SidebarCard, DAMAC, EmpoweringCommunities, sequelize } from './models.js';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import compression from 'compression';
+import morgan from 'morgan';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import path from 'path';
-import userRoutes from './routes/userRoute.js';
-import collaborationRoutes from './routes/collaborationRoute.js';
-import cardRoutes from './routes/cardRoute.js';
-import propertyRoutes from './routes/propertyRoute.js';
-import adminRouter from './admin.js';
-import slideRoutes from './routes/slideRoute.js';
-import cardYourPerfectModel from "./routes/cardYourPerfectRoute.js";
+import authRoutes from './routes/authRoute.js';
+import userRoutes from './routes/usersRoute.js';
+import collaborationRoutes from './routes/collaborationsRoute.js';
+import propertyRoutes from './routes/propertiesRoute.js';
+import slideRoutes from './routes/slidesRoute.js';
+import yourperfectRoutes from './routes/yourperfectRoute.js';
+import sidebarcardRoutes from './routes/sidebarcardRoute.js';
+import damacRoutes from './routes/damacRoute.js';
+import empoweringCommunitiesRoutes from './routes/empoweringCommunitiesRoute.js';
 import bodyParser from 'body-parser';
+import publicGetMiddleware from './middlewares/publicGet.js';
+import imageUrlsMiddleware from './middlewares/imageUrls.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -20,43 +28,101 @@ const __dirname = dirname(__filename);
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3000;
-const mongoURI = process.env.MONGODB_URI;
+const port = process.env.PORT || 3001;
 
-console.log('Mongo URI:', mongoURI);
-mongoose.connect("mongodb+srv://muzamildeveloper750_db_user:VdQ2s1YTXaKiDIn3@cluster0.0oc8ri1.mongodb.net/")
-    .then(() => {
-        console.log('✅ MongoDB connected successfully');
-    })
-    .catch(err => {
-        console.error('❌ MongoDB connection error:', err);
-        if (err.message.includes('whitelist') || err.message.includes('IP')) {
-            console.error('\n⚠️  IP Whitelist Issue Detected!');
-            console.error('📝 To fix this:');
-            console.error('1. Go to MongoDB Atlas: https://cloud.mongodb.com/');
-            console.error('2. Navigate to: Network Access → Add IP Address');
-            console.error('3. Click "Add Current IP Address" or add 0.0.0.0/0 (allow all IPs - less secure)');
-            console.error('4. Wait a few minutes for changes to propagate\n');
-        }
-    });
+// Initialize Database
+async function initializeDatabase() {
+    try {
+        await sequelize.authenticate();
+        console.log('✅ SQLite database connected successfully');
+        
+        // Auto-create tables with sync (force: false to preserve data)
+        await sequelize.sync({ force: true });
+        console.log('✅ Database tables synchronized');
+        
+        // Make models available globally
+        global.db = {
+            User,
+            Property,
+            Collaboration,
+            Slide,
+            YourPerfect,
+            SidebarCard,
+            DAMAC,
+            EmpoweringCommunities,
+            sequelize
+        };
+        
+    } catch (err) {
+        console.error('❌ Database connection error:', err);
+    }
+}
 
-mongoose.connection.on('disconnected', () => {
-    console.log('⚠️  MongoDB disconnected');
+initializeDatabase();
+
+// Production middleware
+if (process.env.NODE_ENV === 'production') {
+    app.use(compression());
+    app.use(morgan('combined'));
+} else {
+    app.use(morgan('dev'));
+}
+
+// Security middleware
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "http:", "https:"],
+        },
+    },
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    message: 'Too many requests from this IP, please try again later.'
 });
+app.use('/api/', limiter);
 
-mongoose.connection.on('error', (err) => {
-    console.error('❌ MongoDB error:', err);
-});
-
-app.use(cors({
-    origin: true,
+// CORS configuration
+const corsOptions = {
+    origin: process.env.NODE_ENV === 'production' 
+        ? process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : true
+        : true, // Allow all origins in development
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cookie'],
     exposedHeaders: ['Set-Cookie'],
+};
+
+app.use(cors(corsOptions));
+
+// Serve static files with proper MIME types and CORS headers
+app.use('/uploads', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  next();
+}, express.static(path.join(__dirname, 'uploads'), {
+  setHeaders: (res, filePath) => {
+    // Set proper MIME types for images
+    if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
+      res.setHeader('Content-Type', 'image/jpeg');
+    } else if (filePath.endsWith('.png')) {
+      res.setHeader('Content-Type', 'image/png');
+    } else if (filePath.endsWith('.gif')) {
+      res.setHeader('Content-Type', 'image/gif');
+    } else if (filePath.endsWith('.webp')) {
+      res.setHeader('Content-Type', 'image/webp');
+    }
+  }
 }));
 
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use((req, res, next) => {
@@ -66,24 +132,60 @@ app.use((req, res, next) => {
     next();
 });
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
-        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+        database: sequelize ? 'connected' : 'disconnected',
+        type: 'sequelize-sqlite',
         timestamp: new Date().toISOString()
     });
 });
 
-app.use('/api', userRoutes);
-app.use('/api/', collaborationRoutes);
-app.use('/api/', cardRoutes);
-app.use('/api/', propertyRoutes);
-app.use('/api/', slideRoutes);
-app.use('/api/', cardYourPerfectModel);
+// Demo CRUD operations with Sequelize
+app.get('/api/demo', async (req, res) => {
+    try {
+        // CREATE - Auto-generates INSERT
+        const user = await User.create({
+            name: 'John Doe',
+            email: 'john@example.com',
+            password: 'hashedpassword',
+            role: 'user'
+        });
 
-app.use('/admin', adminRouter);
+        // READ ALL - Auto-generates SELECT
+        const allUsers = await User.findAll();
+
+        // READ ONE - Auto-generates SELECT with WHERE
+        const foundUser = await User.findByPk(user.id);
+
+        // UPDATE - Auto-generates UPDATE
+        await user.update({ name: 'John Updated' });
+
+        // DELETE - Auto-generates DELETE
+        // await user.destroy();
+
+        res.json({
+            message: 'Sequelize CRUD demo successful',
+            created: user,
+            allUsers: allUsers.length,
+            foundUser: foundUser.name,
+            updated: user.name
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Apply routes with middleware
+app.use('/api', authRoutes);
+app.use('/api/users', userRoutes); // User management requires authentication
+app.use('/api/properties', imageUrlsMiddleware, publicGetMiddleware, propertyRoutes); // GET requests are public
+app.use('/api/collaborations', imageUrlsMiddleware, publicGetMiddleware, collaborationRoutes); // GET requests are public
+app.use('/api/slides', imageUrlsMiddleware, publicGetMiddleware, slideRoutes); // GET requests are public
+app.use('/api/yourperfect', imageUrlsMiddleware, publicGetMiddleware, yourperfectRoutes); // GET requests are public
+app.use('/api/sidebarcard', imageUrlsMiddleware, publicGetMiddleware, sidebarcardRoutes); // GET requests are public
+app.use('/api/damac', imageUrlsMiddleware, publicGetMiddleware, damacRoutes); // GET requests are public
+app.use('/api/empoweringcommunities', imageUrlsMiddleware, publicGetMiddleware, empoweringCommunitiesRoutes); // GET requests are public
 
 app.use((err, req, res, next) => {
     console.error('❌ Error:', err.message);
@@ -95,6 +197,8 @@ app.use((err, req, res, next) => {
 
 app.listen(port, () => {
     console.log(`\n🚀 Server is running on port: ${port}`);
-    console.log(`📊 Admin Panel: http://localhost:${port}/admin`);
-    console.log(`💚 Health Check: http://localhost:${port}/health\n`);
+    console.log(` Health Check: http://localhost:${port}/health\n`);
 });
+
+// Export models for use in other files
+export { User, Property, Collaboration, sequelize };

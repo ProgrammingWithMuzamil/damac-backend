@@ -22,7 +22,7 @@ const User = sequelize.define('User', {
     timestamps: true
 });
 
-async function createAdminUser() {
+async function createDefaultUser() {
     try {
         // Connect to database
         await sequelize.authenticate();
@@ -31,36 +31,36 @@ async function createAdminUser() {
         // Sync tables
         await sequelize.sync({ force: false });
 
-        // Check if admin already exists
-        const existingAdmin = await User.findOne({ where: { email: 'admin@damac.com' } });
-        if (existingAdmin) {
-            console.log('Admin user already exists!');
-            console.log('Email: admin@damac.com');
-            console.log('You can use this account to login to AdminJS panel.');
+        // Check if user already exists
+        const existingUser = await User.findOne({ where: { email: 'user@damac.com' } });
+        if (existingUser) {
+            console.log('Default user already exists!');
+            console.log('Email: user@damac.com');
+            console.log('Password: user123');
             process.exit(0);
         }
 
         // Hash password
-        const hashedPassword = await bcrypt.hash('admin123', 10);
+        const hashedPassword = await bcrypt.hash('user123', 10);
 
-        // Create admin user
-        const admin = await User.create({
-            name: 'Admin User',
-            email: 'admin@damac.com',
+        // Create default user
+        const user = await User.create({
+            name: 'Default User',
+            email: 'user@damac.com',
             password: hashedPassword,
-            role: 'admin'
+            role: 'user'
         });
 
-        console.log('Admin user created successfully!');
-        console.log('Email: admin@damac.com');
-        console.log('Password: admin123');
-        console.log('\nYou can now login to the AdminJS panel at http://localhost:3000/admin');
+        console.log('Default user created successfully!');
+        console.log('Email: user@damac.com');
+        console.log('Password: user123');
+        console.log('\nYou can use this account for regular user access.');
 
         process.exit(0);
     } catch (error) {
-        console.error('Error creating admin user:', error);
+        console.error('Error creating default user:', error);
         process.exit(1);
     }
 }
 
-createAdminUser();
+createDefaultUser();
