@@ -52,3 +52,10 @@ coverage/
 
 # Ignore uploads folder (if you're not storing images in version control)
 uploads/
+
+# Python virtual environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
