@@ -121,30 +121,10 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// CORS configuration
+// CORS configuration - allow all origins by reflecting the request origin.
+// Note: using `origin: true` allows credentials and echoes the incoming Origin header.
 const corsOptions = {
-    origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
-
-        // Always allow these trusted origins regardless of environment
-        const allowedOrigins = [
-            'https://ilandpropertiesdashboard.vercel.app',
-            'https://damac-backend.onrender.com'
-        ];
-
-        if (allowedOrigins.indexOf(origin) !== -1) {
-            return callback(null, true);
-        }
-
-        if (process.env.NODE_ENV === 'production') {
-            // In production, reject unknown origins
-            return callback(new Error('Not allowed by CORS'));
-        }
-
-        // In development, allow other origins for convenience
-        return callback(null, true);
-    },
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cookie'],
