@@ -107,7 +107,7 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'"],
             scriptSrc: ["'self'"],
             imgSrc: ["'self'", "data:", "http:", "https:"],
-            connectSrc: ["'self'", "https://admin.ilandproperties.ae", "https://damac-backend.onrender.com"]
+            connectSrc: ["'self'", "https://admin.ilandproperties.ae", "https://damac-backend-xssr.onrender.com"]
         },
     },
     crossOriginEmbedderPolicy: false
