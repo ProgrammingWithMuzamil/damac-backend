@@ -147,11 +147,19 @@ app.use('/uploads', (req, res, next) => {
     res.header('Access-Control-Allow-Headers', 'Content-Type');
     
     // Check if file exists before serving
-    const filePath = path.join(__dirname, 'uploads', req.path);
+    // req.path includes /uploads, so we need to remove it
+    const relativePath = req.path.replace('/uploads', '');
+    const filePath = path.join(__dirname, 'uploads', relativePath);
+    
+    // Log for debugging
+    console.log(`🔍 Looking for file: ${filePath}`);
+    
     if (!fs.existsSync(filePath)) {
+        console.log(`❌ File not found: ${filePath}`);
         return res.status(404).json({ error: 'File not found' });
     }
     
+    console.log(`✅ File found: ${filePath}`);
     next();
 }, express.static(path.join(__dirname, 'uploads'), {
     setHeaders: (res, filePath) => {

@@ -10,7 +10,8 @@
     "create-admin": "node createAdmin.js",
     "create-user": "node createUser.js",
     "seed-collaborations": "node seedCollaborations.js",
-    "render-build": "chmod +x render-build-script.sh && ./render-build-script.sh"
+    "render-build": "chmod +x render-deploy-fix.sh && ./render-deploy-fix.sh",
+    "postinstall": "node ensure-dirs-on-start.js"
   },
   "keywords": [],
   "author": "",

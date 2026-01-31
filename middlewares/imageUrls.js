@@ -12,8 +12,10 @@ const imageUrlsMiddleware = (req, res, next) => {
         return imagePath;
       }
       
-      // Get the base URL from environment or use default
-      const baseUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
+      // Get the base URL from request host (more reliable than env var)
+      const protocol = req.protocol || 'https';
+      const host = req.get('host') || 'damac-backend-xssr.onrender.com';
+      const baseUrl = `${protocol}://${host}`;
       
       // Remove leading slash if present to avoid double slashes
       const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
