@@ -106,8 +106,10 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'"],
             scriptSrc: ["'self'"],
             imgSrc: ["'self'", "data:", "http:", "https:"],
+            connectSrc: ["'self'", "https://ilandpropertiesdashboard.vercel.app", "https://damac-backend.onrender.com"]
         },
     },
+    crossOriginEmbedderPolicy: false
 }));
 
 // Rate limiting
@@ -120,15 +122,37 @@ app.use('/api/', limiter);
 
 // CORS configuration
 const corsOptions = {
-    origin: process.env.NODE_ENV === 'production' 
-        ? process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : true
-        : true, // Allow all origins in development
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        
+        if (process.env.NODE_ENV === 'production') {
+            // In production, allow specific frontend URL
+            const allowedOrigins = [
+                'https://ilandpropertiesdashboard.vercel.app',
+                'https://damac-backend.onrender.com'
+            ];
+            if (allowedOrigins.indexOf(origin) !== -1) {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
+        } else {
+            // In development, allow all origins
+            callback(null, true);
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cookie'],
     exposedHeaders: ['Set-Cookie'],
+    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 };
 
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
+// Apply CORS middleware
 app.use(cors(corsOptions));
 
 // Serve static files with proper MIME types and CORS headers
