@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { Collaboration } from '../models.js';
@@ -10,10 +11,38 @@ const __dirname = dirname(__filename);
 
 const router = express.Router();
 
+// Helper function to check if file exists
+const checkFileExists = (imgPath) => {
+  if (!imgPath) return false;
+  const fullPath = path.join(__dirname, '..', imgPath);
+  return fs.existsSync(fullPath);
+};
+
+// Helper function to get clean collaboration data with file validation
+const getCleanCollaboration = (collab) => {
+  const cleanCollab = {
+    id: collab.id,
+    img: collab.img,
+    logo: collab.logo,
+    title: collab.title,
+    desc: collab.desc,
+    createdAt: collab.createdAt ? collab.createdAt.toISOString() : null,
+    updatedAt: collab.updatedAt ? collab.updatedAt.toISOString() : null,
+    imgExists: checkFileExists(collab.img),
+    logoExists: checkFileExists(collab.logo)
+  };
+  return cleanCollab;
+};
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../uploads/collaborations'));
+    const uploadDir = path.join(__dirname, '../uploads/collaborations');
+    // Ensure directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -46,15 +75,7 @@ router.get('/', async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
     
-    const cleanCollaborations = collaborations.map(collab => ({
-      id: collab.id,
-      img: collab.img,
-      logo: collab.logo,
-      title: collab.title,
-      desc: collab.desc,
-      createdAt: collab.createdAt ? collab.createdAt.toISOString() : null,
-      updatedAt: collab.updatedAt ? collab.updatedAt.toISOString() : null
-    }));
+    const cleanCollaborations = collaborations.map(collab => getCleanCollaboration(collab));
     
     res.json(cleanCollaborations);
   } catch (error) {
@@ -72,15 +93,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Collaboration not found' });
     }
     
-    const cleanCollaboration = {
-      id: collaboration.id,
-      img: collaboration.img,
-      logo: collaboration.logo,
-      title: collaboration.title,
-      desc: collaboration.desc,
-      createdAt: collaboration.createdAt ? collaboration.createdAt.toISOString() : null,
-      updatedAt: collaboration.updatedAt ? collaboration.updatedAt.toISOString() : null
-    };
+    const cleanCollaboration = getCleanCollaboration(collaboration);
     
     res.json(cleanCollaboration);
   } catch (error) {
@@ -126,15 +139,7 @@ router.post('/', upload.fields([{ name: 'img', maxCount: 1 }, { name: 'logo', ma
       desc: desc.trim()
     });
 
-    const cleanCollaboration = {
-      id: collaboration.id,
-      img: collaboration.img,
-      logo: collaboration.logo,
-      title: collaboration.title,
-      desc: collaboration.desc,
-      createdAt: collaboration.createdAt ? collaboration.createdAt.toISOString() : null,
-      updatedAt: collaboration.updatedAt ? collaboration.updatedAt.toISOString() : null
-    };
+    const cleanCollaboration = getCleanCollaboration(collaboration);
     
     res.status(201).json(cleanCollaboration);
   } catch (error) {
@@ -174,15 +179,7 @@ router.put('/:id', upload.fields([{ name: 'img', maxCount: 1 }, { name: 'logo', 
 
     await collaboration.update(updateData);
     
-    const cleanCollaboration = {
-      id: collaboration.id,
-      img: collaboration.img,
-      logo: collaboration.logo,
-      title: collaboration.title,
-      desc: collaboration.desc,
-      createdAt: collaboration.createdAt ? collaboration.createdAt.toISOString() : null,
-      updatedAt: collaboration.updatedAt ? collaboration.updatedAt.toISOString() : null
-    };
+    const cleanCollaboration = getCleanCollaboration(collaboration);
     
     res.json(cleanCollaboration);
   } catch (error) {
@@ -200,10 +197,66 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Collaboration not found' });
     }
 
+    // Delete associated files if they exist
+    if (collaboration.img) {
+      const imgPath = path.join(__dirname, '..', collaboration.img);
+      if (fs.existsSync(imgPath)) {
+        fs.unlinkSync(imgPath);
+      }
+    }
+    
+    if (collaboration.logo) {
+      const logoPath = path.join(__dirname, '..', collaboration.logo);
+      if (fs.existsSync(logoPath)) {
+        fs.unlinkSync(logoPath);
+      }
+    }
+
     await collaboration.destroy();
     res.json({ message: 'Collaboration deleted successfully' });
   } catch (error) {
     console.error('Delete collaboration error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Cleanup collaborations with missing files
+router.delete('/cleanup/orphaned', async (req, res) => {
+  try {
+    const collaborations = await Collaboration.findAll();
+    let deletedCount = 0;
+    
+    for (const collaboration of collaborations) {
+      const imgExists = checkFileExists(collaboration.img);
+      const logoExists = checkFileExists(collaboration.logo);
+      
+      if (!imgExists || !logoExists) {
+        // Delete files if they exist (might be corrupted)
+        if (collaboration.img) {
+          const imgPath = path.join(__dirname, '..', collaboration.img);
+          if (fs.existsSync(imgPath)) {
+            fs.unlinkSync(imgPath);
+          }
+        }
+        
+        if (collaboration.logo) {
+          const logoPath = path.join(__dirname, '..', collaboration.logo);
+          if (fs.existsSync(logoPath)) {
+            fs.unlinkSync(logoPath);
+          }
+        }
+        
+        await collaboration.destroy();
+        deletedCount++;
+      }
+    }
+    
+    res.json({ 
+      message: `Cleaned up ${deletedCount} orphaned collaborations`,
+      deletedCount 
+    });
+  } catch (error) {
+    console.error('Cleanup error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

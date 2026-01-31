@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { Slide } from '../models.js';
@@ -10,10 +11,37 @@ const __dirname = dirname(__filename);
 
 const router = express.Router();
 
+// Helper function to check if file exists
+const checkFileExists = (imgPath) => {
+  if (!imgPath) return false;
+  const fullPath = path.join(__dirname, '..', imgPath);
+  return fs.existsSync(fullPath);
+};
+
+// Helper function to get clean slide data with file validation
+const getCleanSlide = (slide) => {
+  const cleanSlide = {
+    id: slide.id,
+    img: slide.img,
+    title: slide.title,
+    location: slide.location,
+    points: slide.points,
+    createdAt: slide.createdAt ? slide.createdAt.toISOString() : null,
+    updatedAt: slide.updatedAt ? slide.updatedAt.toISOString() : null,
+    fileExists: checkFileExists(slide.img)
+  };
+  return cleanSlide;
+};
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../uploads/slides'));
+    const uploadDir = path.join(__dirname, '../uploads/slides');
+    // Ensure directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -46,15 +74,7 @@ router.get('/', async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
     
-    const cleanSlides = slides.map(slide => ({
-      id: slide.id,
-      img: slide.img,
-      title: slide.title,
-      location: slide.location,
-      points: slide.points,
-      createdAt: slide.createdAt ? slide.createdAt.toISOString() : null,
-      updatedAt: slide.updatedAt ? slide.updatedAt.toISOString() : null
-    }));
+    const cleanSlides = slides.map(slide => getCleanSlide(slide));
     
     res.json(cleanSlides);
   } catch (error) {
@@ -72,15 +92,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Slide not found' });
     }
     
-    const cleanSlide = {
-      id: slide.id,
-      img: slide.img,
-      title: slide.title,
-      location: slide.location,
-      points: slide.points,
-      createdAt: slide.createdAt ? slide.createdAt.toISOString() : null,
-      updatedAt: slide.updatedAt ? slide.updatedAt.toISOString() : null
-    };
+    const cleanSlide = getCleanSlide(slide);
     
     res.json(cleanSlide);
   } catch (error) {
@@ -114,15 +126,7 @@ router.post('/', upload.single('img'), async (req, res) => {
       points: Array.isArray(points) ? points : points.split(',').map(p => p.trim())
     });
 
-    const cleanSlide = {
-      id: slide.id,
-      img: slide.img,
-      title: slide.title,
-      location: slide.location,
-      points: slide.points,
-      createdAt: slide.createdAt ? slide.createdAt.toISOString() : null,
-      updatedAt: slide.updatedAt ? slide.updatedAt.toISOString() : null
-    };
+    const cleanSlide = getCleanSlide(slide);
     
     res.status(201).json(cleanSlide);
   } catch (error) {
@@ -157,15 +161,7 @@ router.put('/:id', upload.single('img'), async (req, res) => {
 
     await slide.update(updateData);
     
-    const cleanSlide = {
-      id: slide.id,
-      img: slide.img,
-      title: slide.title,
-      location: slide.location,
-      points: slide.points,
-      createdAt: slide.createdAt ? slide.createdAt.toISOString() : null,
-      updatedAt: slide.updatedAt ? slide.updatedAt.toISOString() : null
-    };
+    const cleanSlide = getCleanSlide(slide);
     
     res.json(cleanSlide);
   } catch (error) {
@@ -183,10 +179,48 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Slide not found' });
     }
 
+    // Delete associated file if it exists
+    if (slide.img) {
+      const filePath = path.join(__dirname, '..', slide.img);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
     await slide.destroy();
     res.json({ message: 'Slide deleted successfully' });
   } catch (error) {
     console.error('Delete slide error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Cleanup slides with missing files
+router.delete('/cleanup/orphaned', async (req, res) => {
+  try {
+    const slides = await Slide.findAll();
+    let deletedCount = 0;
+    
+    for (const slide of slides) {
+      if (!checkFileExists(slide.img)) {
+        // Delete file if it exists (might be corrupted)
+        if (slide.img) {
+          const filePath = path.join(__dirname, '..', slide.img);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+          }
+        }
+        await slide.destroy();
+        deletedCount++;
+      }
+    }
+    
+    res.json({ 
+      message: `Cleaned up ${deletedCount} orphaned slides`,
+      deletedCount 
+    });
+  } catch (error) {
+    console.error('Cleanup error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

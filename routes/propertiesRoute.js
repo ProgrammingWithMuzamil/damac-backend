@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { Property } from '../models.js';
@@ -10,10 +11,37 @@ const __dirname = dirname(__filename);
 
 const router = express.Router();
 
+// Helper function to check if file exists
+const checkFileExists = (imgPath) => {
+  if (!imgPath) return false;
+  const fullPath = path.join(__dirname, '..', imgPath);
+  return fs.existsSync(fullPath);
+};
+
+// Helper function to get clean property data with file validation
+const getCleanProperty = (property) => {
+  const cleanProperty = {
+    id: property.id,
+    img: property.img,
+    title: property.title,
+    location: property.location,
+    price: property.price,
+    createdAt: property.createdAt ? property.createdAt.toISOString() : null,
+    updatedAt: property.updatedAt ? property.updatedAt.toISOString() : null,
+    fileExists: checkFileExists(property.img)
+  };
+  return cleanProperty;
+};
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../uploads/properties'));
+    const uploadDir = path.join(__dirname, '../uploads/properties');
+    // Ensure directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -46,15 +74,7 @@ router.get('/', async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
     
-    const cleanProperties = properties.map(property => ({
-      id: property.id,
-      img: property.img,
-      title: property.title,
-      location: property.location,
-      price: property.price,
-      createdAt: property.createdAt ? property.createdAt.toISOString() : null,
-      updatedAt: property.updatedAt ? property.updatedAt.toISOString() : null
-    }));
+    const cleanProperties = properties.map(property => getCleanProperty(property));
     
     res.json(cleanProperties);
   } catch (error) {
@@ -72,15 +92,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Property not found' });
     }
     
-    const cleanProperty = {
-      id: property.id,
-      img: property.img,
-      title: property.title,
-      location: property.location,
-      price: property.price,
-      createdAt: property.createdAt ? property.createdAt.toISOString() : null,
-      updatedAt: property.updatedAt ? property.updatedAt.toISOString() : null
-    };
+    const cleanProperty = getCleanProperty(property);
     
     res.json(cleanProperty);
   } catch (error) {
@@ -115,15 +127,7 @@ router.post('/', upload.single('img'), async (req, res) => {
       price: price.trim()
     });
 
-    const cleanProperty = {
-      id: property.id,
-      img: property.img,
-      title: property.title,
-      location: property.location,
-      price: property.price,
-      createdAt: property.createdAt ? property.createdAt.toISOString() : null,
-      updatedAt: property.updatedAt ? property.updatedAt.toISOString() : null
-    };
+    const cleanProperty = getCleanProperty(property);
     
     res.status(201).json(cleanProperty);
   } catch (error) {
@@ -156,15 +160,7 @@ router.put('/:id', upload.single('img'), async (req, res) => {
 
     await property.update(updateData);
     
-    const cleanProperty = {
-      id: property.id,
-      img: property.img,
-      title: property.title,
-      location: property.location,
-      price: property.price,
-      createdAt: property.createdAt ? property.createdAt.toISOString() : null,
-      updatedAt: property.updatedAt ? property.updatedAt.toISOString() : null
-    };
+    const cleanProperty = getCleanProperty(property);
     
     res.json(cleanProperty);
   } catch (error) {
@@ -182,10 +178,48 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Property not found' });
     }
 
+    // Delete associated file if it exists
+    if (property.img) {
+      const filePath = path.join(__dirname, '..', property.img);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
     await property.destroy();
     res.json({ message: 'Property deleted successfully' });
   } catch (error) {
     console.error('Delete property error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Cleanup properties with missing files
+router.delete('/cleanup/orphaned', async (req, res) => {
+  try {
+    const properties = await Property.findAll();
+    let deletedCount = 0;
+    
+    for (const property of properties) {
+      if (!checkFileExists(property.img)) {
+        // Delete file if it exists (might be corrupted)
+        if (property.img) {
+          const filePath = path.join(__dirname, '..', property.img);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+          }
+        }
+        await property.destroy();
+        deletedCount++;
+      }
+    }
+    
+    res.json({ 
+      message: `Cleaned up ${deletedCount} orphaned properties`,
+      deletedCount 
+    });
+  } catch (error) {
+    console.error('Cleanup error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

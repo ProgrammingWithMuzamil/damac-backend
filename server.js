@@ -9,6 +9,7 @@ import morgan from 'morgan';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import path from 'path';
+import fs from 'fs';
 import authRoutes from './routes/authRoute.js';
 import userRoutes from './routes/usersRoute.js';
 import contactRoutes from './routes/contactRoute.js';
@@ -22,6 +23,7 @@ import empoweringCommunitiesRoutes from './routes/empoweringCommunitiesRoute.js'
 import bodyParser from 'body-parser';
 import publicGetMiddleware from './middlewares/publicGet.js';
 import imageUrlsMiddleware from './middlewares/imageUrls.js';
+import './ensure-uploads.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -143,6 +145,13 @@ app.use('/uploads', (req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
+    
+    // Check if file exists before serving
+    const filePath = path.join(__dirname, 'uploads', req.path);
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'File not found' });
+    }
+    
     next();
 }, express.static(path.join(__dirname, 'uploads'), {
     setHeaders: (res, filePath) => {
@@ -232,6 +241,38 @@ app.use((err, req, res, next) => {
         error: err.message || 'Internal Server Error'
     });
 });
+
+// Serve frontend static files in production (must be after all API routes)
+if (process.env.NODE_ENV === 'production') {
+    // Check if frontend build exists
+    const frontendBuildPath = path.join(__dirname, '../damac-frontend/dist');
+    
+    if (fs.existsSync(frontendBuildPath)) {
+        console.log('📦 Serving frontend from:', frontendBuildPath);
+        
+        // Serve static files from frontend build
+        app.use(express.static(frontendBuildPath));
+        
+        // Serve index.html for all non-API routes (SPA routing)
+        // This must come AFTER all API routes are defined
+        app.get('*', (req, res) => {
+            // Don't intercept API routes or uploads
+            if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/') || req.path === '/health') {
+                return res.status(404).json({ error: 'API endpoint not found' });
+            }
+            
+            const indexPath = path.join(frontendBuildPath, 'index.html');
+            if (fs.existsSync(indexPath)) {
+                res.sendFile(indexPath);
+            } else {
+                res.status(404).send('Frontend build not found. Please run "npm run build" in the frontend directory.');
+            }
+        });
+    } else {
+        console.log('⚠️  Frontend build not found at:', frontendBuildPath);
+        console.log('   To serve frontend from this server, run "npm run build" in the damac-frontend directory');
+    }
+}
 
 app.listen(port, () => {
     console.log(`\n🚀 Server is running on port: ${port}`);
