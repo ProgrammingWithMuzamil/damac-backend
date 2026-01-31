@@ -1,7 +1,7 @@
 {
   "name": "damac-backend",
-  "version": "1.0.0",
-  "description": "",
+  "version": "1.0.1",
+  "description": "DAMAC Backend API with Contact Form",
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
