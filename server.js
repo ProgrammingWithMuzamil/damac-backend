@@ -11,6 +11,7 @@ import { dirname } from 'path';
 import path from 'path';
 import authRoutes from './routes/authRoute.js';
 import userRoutes from './routes/usersRoute.js';
+import contactRoutes from './routes/contactRoute.js';
 import collaborationRoutes from './routes/collaborationsRoute.js';
 import propertyRoutes from './routes/propertiesRoute.js';
 import slideRoutes from './routes/slidesRoute.js';
@@ -25,7 +26,7 @@ import imageUrlsMiddleware from './middlewares/imageUrls.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-dotenv.config();
+dotenv.config({ path: process.env.NODE_ENV === 'production' ? '.env.production' : '.env' });
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -35,14 +36,14 @@ async function initializeDatabase() {
     try {
         await sequelize.authenticate();
         console.log('✅ SQLite database connected successfully');
-        
+
         // Auto-create tables with sync (force: false to preserve data)
         await sequelize.sync({ force: false });
         console.log('✅ Database tables synchronized');
-        
+
         // Create admin user if not exists
         await createAdminUser();
-        
+
         // Make models available globally
         global.db = {
             User,
@@ -55,7 +56,7 @@ async function initializeDatabase() {
             EmpoweringCommunities,
             sequelize
         };
-        
+
     } catch (err) {
         console.error('❌ Database connection error:', err);
     }
@@ -67,22 +68,22 @@ async function createAdminUser() {
         // Remove all existing users first
         await User.destroy({ where: {} });
         console.log('🗑️  Removed all existing users');
-        
+
         // Create only the specified admin user
         const bcrypt = await import('bcrypt');
         const hashedPassword = await bcrypt.hash('Ipoint@2025', 10);
-        
+
         await User.create({
             name: 'iland',
             email: 'ipointsales03@gmail.com',
             password: hashedPassword,
             role: 'admin'
         });
-        
+
         console.log('✅ Admin user created successfully');
         console.log('   Email: ipointsales03@gmail.com');
         console.log('   Password: Ipoint@2025');
-        
+
     } catch (error) {
         console.error('❌ Error creating admin user:', error);
     }
@@ -125,22 +126,24 @@ const corsOptions = {
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
-        
-        if (process.env.NODE_ENV === 'production') {
-            // In production, allow specific frontend URL
-            const allowedOrigins = [
-                'https://ilandpropertiesdashboard.vercel.app',
-                'https://damac-backend.onrender.com'
-            ];
-            if (allowedOrigins.indexOf(origin) !== -1) {
-                callback(null, true);
-            } else {
-                callback(new Error('Not allowed by CORS'));
-            }
-        } else {
-            // In development, allow all origins
-            callback(null, true);
+
+        // Always allow these trusted origins regardless of environment
+        const allowedOrigins = [
+            'https://ilandpropertiesdashboard.vercel.app',
+            'https://damac-backend.onrender.com'
+        ];
+
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            return callback(null, true);
         }
+
+        if (process.env.NODE_ENV === 'production') {
+            // In production, reject unknown origins
+            return callback(new Error('Not allowed by CORS'));
+        }
+
+        // In development, allow other origins for convenience
+        return callback(null, true);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -157,23 +160,23 @@ app.use(cors(corsOptions));
 
 // Serve static files with proper MIME types and CORS headers
 app.use('/uploads', (req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-  next();
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    next();
 }, express.static(path.join(__dirname, 'uploads'), {
-  setHeaders: (res, filePath) => {
-    // Set proper MIME types for images
-    if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
-      res.setHeader('Content-Type', 'image/jpeg');
-    } else if (filePath.endsWith('.png')) {
-      res.setHeader('Content-Type', 'image/png');
-    } else if (filePath.endsWith('.gif')) {
-      res.setHeader('Content-Type', 'image/gif');
-    } else if (filePath.endsWith('.webp')) {
-      res.setHeader('Content-Type', 'image/webp');
+    setHeaders: (res, filePath) => {
+        // Set proper MIME types for images
+        if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
+            res.setHeader('Content-Type', 'image/jpeg');
+        } else if (filePath.endsWith('.png')) {
+            res.setHeader('Content-Type', 'image/png');
+        } else if (filePath.endsWith('.gif')) {
+            res.setHeader('Content-Type', 'image/gif');
+        } else if (filePath.endsWith('.webp')) {
+            res.setHeader('Content-Type', 'image/webp');
+        }
     }
-  }
 }));
 
 app.use(bodyParser.json({ limit: '10mb' }));
@@ -232,6 +235,7 @@ app.get('/api/demo', async (req, res) => {
 
 // Apply routes with middleware
 app.use('/api', authRoutes);
+app.use('/api/contact', contactRoutes); // Public contact form endpoint
 app.use('/api/users', userRoutes); // User management requires authentication
 app.use('/api/properties', imageUrlsMiddleware, publicGetMiddleware, propertyRoutes); // GET requests are public
 app.use('/api/collaborations', imageUrlsMiddleware, publicGetMiddleware, collaborationRoutes); // GET requests are public
