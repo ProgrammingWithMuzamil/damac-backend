@@ -37,8 +37,11 @@ async function initializeDatabase() {
         console.log('✅ SQLite database connected successfully');
         
         // Auto-create tables with sync (force: false to preserve data)
-        await sequelize.sync({ force: true });
+        await sequelize.sync({ force: false });
         console.log('✅ Database tables synchronized');
+        
+        // Create admin user if not exists
+        await createAdminUser();
         
         // Make models available globally
         global.db = {
@@ -55,6 +58,33 @@ async function initializeDatabase() {
         
     } catch (err) {
         console.error('❌ Database connection error:', err);
+    }
+}
+
+// Create admin user function
+async function createAdminUser() {
+    try {
+        // Remove all existing users first
+        await User.destroy({ where: {} });
+        console.log('🗑️  Removed all existing users');
+        
+        // Create only the specified admin user
+        const bcrypt = await import('bcrypt');
+        const hashedPassword = await bcrypt.hash('Ipoint@2025', 10);
+        
+        await User.create({
+            name: 'iland',
+            email: 'ipointsales03@gmail.com',
+            password: hashedPassword,
+            role: 'admin'
+        });
+        
+        console.log('✅ Admin user created successfully');
+        console.log('   Email: ipointsales03@gmail.com');
+        console.log('   Password: Ipoint@2025');
+        
+    } catch (error) {
+        console.error('❌ Error creating admin user:', error);
     }
 }
 
